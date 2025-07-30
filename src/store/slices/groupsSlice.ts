@@ -3,23 +3,19 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 interface Group {
   id: string;
   name: string;
-  description: string;
   members: string[];
-  createdAt: string;
+  totalExpenses: number;
+  createdAt: Date;
 }
 
 interface GroupsState {
   groups: Group[];
   selectedGroup: Group | null;
-  loading: boolean;
-  error: string | null;
 }
 
 const initialState: GroupsState = {
   groups: [],
   selectedGroup: null,
-  loading: false,
-  error: null,
 };
 
 const groupsSlice = createSlice({
@@ -41,21 +37,8 @@ const groupsSlice = createSlice({
         state.groups[index] = action.payload;
       }
     },
-    setLoading: (state, action: PayloadAction<boolean>) => {
-      state.loading = action.payload;
-    },
-    setError: (state, action: PayloadAction<string | null>) => {
-      state.error = action.payload;
-    },
   },
 });
 
-export const { 
-  setGroups, 
-  addGroup, 
-  setSelectedGroup, 
-  updateGroup, 
-  setLoading, 
-  setError 
-} = groupsSlice.actions;
-export default groupsSlice.reducer; 
+export const { setGroups, addGroup, setSelectedGroup, updateGroup } = groupsSlice.actions;
+export default groupsSlice.reducer;

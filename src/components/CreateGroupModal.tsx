@@ -1,13 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { addGroup } from '../store/slices/groupsSlice';
+import { useCollection } from '../hooks/useFirebase';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,8 +12,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Users, ArrowRight, Check } from 'lucide-react';
-import { addGroup } from '../store/slices/groupsSlice';
-import { mockUsers } from '../utils/mockData';
 
 interface CreateGroupModalProps {
   isOpen: boolean;
@@ -24,7 +19,9 @@ interface CreateGroupModalProps {
 }
 
 const CreateGroupModal = ({ isOpen, onClose }: CreateGroupModalProps) => {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
+  const { addDocument: addGroupToFirebase } = useCollection('groups');
+  const { documents: users } = useCollection('users');
   const [step, setStep] = useState(1);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [groupName, setGroupName] = useState('');
@@ -44,8 +41,7 @@ const CreateGroupModal = ({ isOpen, onClose }: CreateGroupModalProps) => {
       const newSelection = prev.includes(userId)
         ? prev.filter(id => id !== userId)
         : [...prev, userId];
-      
-      setSelectAll(newSelection.length === mockUsers.length);
+      setSelectAll(newSelection.length === users.length);
       return newSelection;
     });
   };
@@ -55,35 +51,37 @@ const CreateGroupModal = ({ isOpen, onClose }: CreateGroupModalProps) => {
       setSelectedUsers([]);
       setSelectAll(false);
     } else {
-      setSelectedUsers(mockUsers.map(user => user.id));
+      setSelectedUsers(users.map(user => user.id));
       setSelectAll(true);
     }
   };
 
   const handleNext = () => {
-    if (selectedUsers.length > 0) {
-      setStep(2);
-    }
+    if (selectedUsers.length > 0) setStep(2);
   };
 
-  const handleCreateGroup = () => {
+  const handleCreateGroup = async () => {
     if (groupName.trim() && selectedUsers.length > 0) {
       const newGroup = {
-        id: Date.now().toString(),
         name: groupName.trim(),
         members: selectedUsers,
         totalExpenses: 0,
         createdAt: new Date(),
       };
       
-      dispatch(addGroup(newGroup));
-      onClose();
+      try {
+        const groupId = await addGroupToFirebase(newGroup);
+        if (groupId) {
+          dispatch(addGroup({ ...newGroup, id: groupId }));
+          onClose();
+        }
+      } catch (error) {
+        console.error('Error creating group:', error);
+      }
     }
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  };
+  const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -94,23 +92,16 @@ const CreateGroupModal = ({ isOpen, onClose }: CreateGroupModalProps) => {
             {step === 1 ? 'Select Members' : 'Create Group'}
           </DialogTitle>
         </DialogHeader>
-
         {step === 1 ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">Choose group members</Label>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSelectAll}
-                className="text-xs"
-              >
+              <Button variant="outline" size="sm" onClick={handleSelectAll} className="text-xs">
                 {selectAll ? 'Deselect All' : 'Select All'}
               </Button>
             </div>
-
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {mockUsers.map((user) => (
+              {users.map((user) => (
                 <Card key={user.id} className="p-0">
                   <CardContent className="p-3">
                     <div className="flex items-center space-x-3">
@@ -127,26 +118,18 @@ const CreateGroupModal = ({ isOpen, onClose }: CreateGroupModalProps) => {
                         <p className="text-sm font-medium">{user.name}</p>
                         <p className="text-xs text-gray-500">{user.email}</p>
                       </div>
-                      {selectedUsers.includes(user.id) && (
-                        <Check className="h-4 w-4 text-green-600" />
-                      )}
+                      {selectedUsers.includes(user.id) && <Check className="h-4 w-4 text-green-600" />}
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
-
             <div className="flex justify-between items-center pt-4">
               <p className="text-sm text-gray-500">
                 {selectedUsers.length} member{selectedUsers.length !== 1 ? 's' : ''} selected
               </p>
-              <Button 
-                onClick={handleNext} 
-                disabled={selectedUsers.length === 0}
-                className="flex items-center gap-2"
-              >
-                Next
-                <ArrowRight className="h-4 w-4" />
+              <Button onClick={handleNext} disabled={selectedUsers.length === 0} className="flex items-center gap-2">
+                Next <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -162,17 +145,16 @@ const CreateGroupModal = ({ isOpen, onClose }: CreateGroupModalProps) => {
                 autoFocus
               />
             </div>
-
             <div className="space-y-2">
               <Label className="text-sm font-medium">Selected Members</Label>
               <div className="flex flex-wrap gap-2">
                 {selectedUsers.map((userId) => {
-                  const user = mockUsers.find(u => u.id === userId);
+                  const user = users.find(u => u.id === userId);
                   return (
                     <div key={userId} className="flex items-center gap-1 bg-gray-100 rounded-full px-2 py-1">
                       <Avatar className="h-5 w-5">
                         <AvatarImage src={user?.avatar} alt={user?.name} />
-                        <AvatarFallback className="text-xs">{getInitials(user?.name || '')}</AvatarFallback>
+                        <AvatarFallback className="text-xs">{getInitials(user?.name)}</AvatarFallback>
                       </Avatar>
                       <span className="text-xs">{user?.name}</span>
                     </div>
@@ -180,17 +162,9 @@ const CreateGroupModal = ({ isOpen, onClose }: CreateGroupModalProps) => {
                 })}
               </div>
             </div>
-
             <div className="flex justify-between pt-4">
-              <Button variant="outline" onClick={() => setStep(1)}>
-                Back
-              </Button>
-              <Button 
-                onClick={handleCreateGroup}
-                disabled={!groupName.trim()}
-              >
-                Create Group
-              </Button>
+              <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+              <Button onClick={handleCreateGroup} disabled={!groupName.trim()}>Create Group</Button>
             </div>
           </div>
         )}
@@ -199,4 +173,4 @@ const CreateGroupModal = ({ isOpen, onClose }: CreateGroupModalProps) => {
   );
 };
 
-export default CreateGroupModal; 
+export default CreateGroupModal;

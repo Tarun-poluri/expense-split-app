@@ -1,14 +1,13 @@
 'use client';
 
-import { useSelector, useDispatch } from 'react-redux';
 import { useEffect } from 'react';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { setGroups, setSelectedGroup } from '../store/slices/groupsSlice';
+import { useCollection } from '../hooks/useFirebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Users, DollarSign, Plus, TrendingUp } from 'lucide-react';
-import { setGroups, setSelectedGroup } from '../store/slices/groupsSlice';
-import { mockGroups, mockUsers } from '../utils/mockData';
-import { RootState } from '../store/store';
 
 interface GroupsListProps {
   onCreateGroup: () => void;
@@ -16,29 +15,28 @@ interface GroupsListProps {
 }
 
 const GroupsList = ({ onCreateGroup, onGroupSelect }: GroupsListProps) => {
-  const dispatch = useDispatch();
-  const { groups } = useSelector((state: RootState) => state.groups);
+  const dispatch = useAppDispatch();
+  const { groups } = useAppSelector((state) => state.groups);
+  const { documents: firebaseGroups } = useCollection('groups');
+  const { documents: users } = useCollection('users');
 
   useEffect(() => {
-    // Load mock data for development
-    dispatch(setGroups(mockGroups));
-  }, [dispatch]);
+    if (firebaseGroups.length > 0) {
+      const groupsWithMembers = firebaseGroups.map(group => ({
+        ...group,
+        membersDetails: users.filter(user => group.members.includes(user.id))
+      }));
+      dispatch(setGroups(groupsWithMembers));
+    }
+  }, [firebaseGroups, users, dispatch]);
 
   const handleGroupClick = (group: any) => {
     dispatch(setSelectedGroup(group));
     onGroupSelect(group);
   };
 
-  const getMemberNames = (memberIds: string[]) => {
-    return memberIds
-      .map(id => mockUsers.find(user => user.id === id)?.name)
-      .filter(Boolean)
-      .join(', ');
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header Section */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -55,7 +53,6 @@ const GroupsList = ({ onCreateGroup, onGroupSelect }: GroupsListProps) => {
         </Button>
       </div>
 
-      {/* Stats Overview */}
       {groups.length > 0 && (
         <div className="grid gap-4 md:grid-cols-3 animate-slide-up">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
@@ -151,7 +148,6 @@ const GroupsList = ({ onCreateGroup, onGroupSelect }: GroupsListProps) => {
                       </div>
                       <span className="font-medium">{group.members.length} members</span>
                     </div>
-                    
                     <div className="flex items-center gap-2 text-sm">
                       <div className="p-1 bg-green-100 rounded">
                         <DollarSign className="h-3 w-3 text-green-600" />
@@ -163,19 +159,16 @@ const GroupsList = ({ onCreateGroup, onGroupSelect }: GroupsListProps) => {
                   <div className="space-y-2">
                     <p className="text-xs text-gray-500 font-medium">Members:</p>
                     <div className="flex flex-wrap gap-1">
-                      {group.members.slice(0, 3).map((memberId) => {
-                        const user = mockUsers.find(u => u.id === memberId);
-                        return (
-                          <div key={memberId} className="flex items-center gap-1 bg-gray-100 rounded-full px-2 py-1">
-                            <div className="w-4 h-4 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
-                              <span className="text-xs font-bold text-white">
-                                {user?.name.charAt(0)}
-                              </span>
-                            </div>
-                            <span className="text-xs text-gray-700">{user?.name.split(' ')[0]}</span>
+                      {group.membersDetails.slice(0, 3).map((user: any) => (
+                        <div key={user.id} className="flex items-center gap-1 bg-gray-100 rounded-full px-2 py-1">
+                          <div className="w-4 h-4 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
+                            <span className="text-xs font-bold text-white">
+                              {user?.name.charAt(0)}
+                            </span>
                           </div>
-                        );
-                      })}
+                          <span className="text-xs text-gray-700">{user?.name.split(' ')[0]}</span>
+                        </div>
+                      ))}
                       {group.members.length > 3 && (
                         <div className="flex items-center gap-1 bg-gray-200 rounded-full px-2 py-1">
                           <span className="text-xs text-gray-600">+{group.members.length - 3}</span>
@@ -186,7 +179,7 @@ const GroupsList = ({ onCreateGroup, onGroupSelect }: GroupsListProps) => {
 
                   <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                     <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                      Created {group.createdAt.toLocaleDateString()}
+                      Created {new Date(group.createdAt).toLocaleDateString()}
                     </Badge>
                     <div className="text-xs text-gray-500">
                       ${(group.totalExpenses / group.members.length).toFixed(2)} per person
@@ -202,4 +195,4 @@ const GroupsList = ({ onCreateGroup, onGroupSelect }: GroupsListProps) => {
   );
 };
 
-export default GroupsList; 
+export default GroupsList;

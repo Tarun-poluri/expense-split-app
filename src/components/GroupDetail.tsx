@@ -1,15 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
+import { useState } from 'react';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Plus, Users, DollarSign } from 'lucide-react';
-import { setExpenses } from '../store/slices/expensesSlice';
-import { mockExpenses, mockUsers } from '../utils/mockData';
 import AddExpenseModal from '@/components/AddExpenseModal';
-import { RootState } from '../store/store';
+import { useGroupExpenses } from '../hooks/useFirebase';
 
 interface GroupDetailProps {
   group: any;
@@ -17,28 +15,19 @@ interface GroupDetailProps {
 }
 
 const GroupDetail = ({ group, onBack }: GroupDetailProps) => {
-  const dispatch = useDispatch();
-  const { expenses } = useSelector((state: RootState) => state.expenses);
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const { expenses } = useGroupExpenses(group.id);
 
-  useEffect(() => {
-    // Load expenses for this group
-    const groupExpenses = mockExpenses.filter(expense => expense.groupId === group.id);
-    dispatch(setExpenses(groupExpenses));
-  }, [group.id, dispatch]);
+  const getUserName = (userId: string) => {
+    return group.membersDetails.find((user: any) => user.id === userId)?.name || 'Unknown';
+  };
 
   const getMemberNames = (memberIds: string[]) => {
     return memberIds
-      .map(id => mockUsers.find(user => user.id === id)?.name)
+      .map(id => group.membersDetails.find((user: any) => user.id === id)?.name)
       .filter(Boolean)
       .join(', ');
   };
-
-  const getUserName = (userId: string) => {
-    return mockUsers.find(user => user.id === userId)?.name || 'Unknown';
-  };
-
-  const groupExpenses = expenses.filter(expense => expense.groupId === group.id);
 
   return (
     <div className="space-y-6">
@@ -59,7 +48,6 @@ const GroupDetail = ({ group, onBack }: GroupDetailProps) => {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        {/* Group Info */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -70,7 +58,7 @@ const GroupDetail = ({ group, onBack }: GroupDetailProps) => {
           <CardContent>
             <div className="space-y-2">
               {group.members.map((memberId: string) => {
-                const user = mockUsers.find(u => u.id === memberId);
+                const user = group.membersDetails.find((u: any) => u.id === memberId);
                 return (
                   <div key={memberId} className="flex items-center gap-2">
                     <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
@@ -86,7 +74,6 @@ const GroupDetail = ({ group, onBack }: GroupDetailProps) => {
           </CardContent>
         </Card>
 
-        {/* Total Expenses */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -99,12 +86,11 @@ const GroupDetail = ({ group, onBack }: GroupDetailProps) => {
               ${group.totalExpenses.toFixed(2)}
             </div>
             <p className="text-sm text-gray-500 mt-1">
-              {groupExpenses.length} expense{groupExpenses.length !== 1 ? 's' : ''}
+              {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
             </p>
           </CardContent>
         </Card>
 
-        {/* Quick Stats */}
         <Card>
           <CardHeader>
             <CardTitle>Average per Person</CardTitle>
@@ -120,13 +106,12 @@ const GroupDetail = ({ group, onBack }: GroupDetailProps) => {
         </Card>
       </div>
 
-      {/* Expenses List */}
       <Card>
         <CardHeader>
           <CardTitle>Recent Expenses</CardTitle>
         </CardHeader>
         <CardContent>
-          {groupExpenses.length === 0 ? (
+          {expenses.length === 0 ? (
             <div className="text-center py-8">
               <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No expenses yet</h3>
@@ -135,7 +120,7 @@ const GroupDetail = ({ group, onBack }: GroupDetailProps) => {
             </div>
           ) : (
             <div className="space-y-3">
-              {groupExpenses.map((expense) => (
+              {expenses.map((expense) => (
                 <div key={expense.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex-1">
                     <h4 className="font-medium">{expense.description}</h4>
@@ -169,4 +154,4 @@ const GroupDetail = ({ group, onBack }: GroupDetailProps) => {
   );
 };
 
-export default GroupDetail; 
+export default GroupDetail;
